@@ -1,0 +1,26 @@
+{
+  "name": "jobcommand",
+  "version": "1.0.0",
+  "description": "ระบบบันทึกภารกิจ ภารกิจผู้บังคับบัญชา หน่วยบัญชาการอากาศโยธิน (JobCommand RTAF)",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm --prefix client run dev",
+    "build:client": "npm --prefix client run build",
+    "build": "npm --prefix client run build",
+    "postinstall": "npm --prefix server install && npm --prefix client install"
+  },
+  "keywords": [
+    "jobcomm",
+    "rtaf",
+    "mission-tracker",
+    "react",
+    "sqlite",
+    "digital-signage"
+  ],
+  "author": "ภารกิจผู้บังคับบัญชา หน่วยบัญชาการอากาศโยธิน",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
