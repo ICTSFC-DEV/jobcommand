@@ -36,8 +36,19 @@ export function App() {
     }
   });
 
-  // Selected Department Filter ('all' or specific department name)
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+  // Selected Department Filter (defaults to logged user's department, or 'all')
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('jobcomm_logged_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u && u.department && u.department.trim()) {
+          return u.department.trim();
+        }
+      }
+    } catch {}
+    return 'all';
+  });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -67,6 +78,7 @@ export function App() {
     localStorage.removeItem('jobcomm_logged_user');
     sessionStorage.removeItem('jobcomm_officer_pin_auth');
     setCurrentUser(null);
+    setSelectedDepartment('all');
     showToast('ออกจากระบบเรียบร้อยแล้ว');
   };
 
@@ -339,6 +351,9 @@ export function App() {
       <LoginScreen
         onSuccess={(user) => {
           setCurrentUser(user);
+          if (user.department && user.department.trim()) {
+            setSelectedDepartment(user.department.trim());
+          }
           showToast(`ยินดีต้อนรับ ${user.username} (${user.department})`);
         }}
         onOpenTvMode={() => setActiveTab('tv')}
