@@ -455,7 +455,7 @@ export const DesktopTableView: React.FC<DesktopTableViewProps> = ({
                               const success = await copyTextToClipboard(lineText);
                               if (success) {
                                 setCopiedId(m.id);
-                                onToast?.(`คัดลอกข้อมูล "${m.title}" สำหรับส่ง Line เรียบร้อยแล้ว 📋`, 'success');
+                                onToast?.(`คัดลอกข้อมูล "${m.title}" เรียบร้อยแล้ว 📋`, 'success');
                                 setTimeout(() => setCopiedId(null), 2000);
                               } else {
                                 onToast?.('ไม่สามารถคัดลอกข้อความได้', 'error');
@@ -466,7 +466,7 @@ export const DesktopTableView: React.FC<DesktopTableViewProps> = ({
                                 ? 'bg-emerald-100 text-emerald-700 font-bold'
                                 : 'hover:bg-emerald-50 text-slate-500 hover:text-emerald-700'
                             }`}
-                            title="คัดลอกข้อความสำหรับส่ง Line"
+                            title="คัดลอกข้อความภารกิจ"
                           >
                             {copiedId === m.id ? (
                               <Check className="w-4 h-4 text-emerald-600" />

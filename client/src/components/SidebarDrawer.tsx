@@ -5,7 +5,6 @@ import {
   TableProperties,
   Shield,
   Radio,
-  Bell,
   CalendarDays
 } from 'lucide-react';
 import type { ActiveTab } from '../types';
@@ -48,12 +47,6 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
       label: 'ตารางสรุป / ส่งออกรายงาน',
       sublabel: 'สำหรับจอคอมพิวเตอร์และพิมพ์รายงานทางการ',
       icon: TableProperties
-    },
-    {
-      id: 'settings' as ActiveTab,
-      label: 'ตั้งค่าส่ง LINE อัตโนมัติ',
-      sublabel: 'ตั้งเวลาส่งภารกิจและเชื่อมต่อกลุ่ม LINE',
-      icon: Bell
     }
   ];
 

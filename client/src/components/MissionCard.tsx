@@ -182,13 +182,13 @@ export const MissionCard: React.FC<MissionCardProps> = ({
     }
   };
 
-  const handleCopyForLine = async (e: React.MouseEvent) => {
+  const handleCopyMission = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const lineText = formatMissionForLine(mission, now);
     const success = await copyTextToClipboard(lineText);
     if (success) {
       setIsCopied(true);
-      onToast?.(`คัดลอกข้อมูล "${mission.title}" สำหรับส่ง Line เรียบร้อยแล้ว 📋`, 'success');
+      onToast?.(`คัดลอกข้อมูล "${mission.title}" เรียบร้อยแล้ว 📋`, 'success');
       setTimeout(() => {
         setIsCopied(false);
       }, 2000);
@@ -262,14 +262,14 @@ export const MissionCard: React.FC<MissionCardProps> = ({
             <div className="flex items-center gap-1 print:hidden">
               <button
                 type="button"
-                onClick={handleCopyForLine}
+                onClick={handleCopyMission}
                 className={`p-1.5 rounded transition-all flex items-center gap-1 ${
                   isCopied
                     ? 'bg-emerald-100 text-emerald-700 font-bold'
                     : 'text-slate-400 hover:text-emerald-700 hover:bg-emerald-50'
                 }`}
-                title="คัดลอกข้อความสำหรับส่ง Line"
-                aria-label="คัดลอกข้อความสำหรับส่ง Line"
+                title="คัดลอกข้อความภารกิจ"
+                aria-label="คัดลอกข้อความภารกิจ"
               >
                 {isCopied ? (
                   <>

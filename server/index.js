@@ -330,14 +330,16 @@ app.post('/api/missions', async (req, res) => {
     });
 
     // Check if notify on add is enabled
-    const lineConfig = await getLineConfig();
-    if (lineConfig.notifyOnAdd && lineConfig.groupId) {
-      try {
-        const flexMessage = buildNewMissionFlexMessage(newMission);
-        await sendLinePushMessage(lineConfig.groupId, flexMessage);
-        console.log(`📤 Sent new mission notification for ID ${newMission.id}`);
-      } catch (err) {
-        console.error('❌ Error sending new mission notification:', err);
+    if (process.env.LINE_ACCESS_TOKEN) {
+      const lineConfig = await getLineConfig();
+      if (lineConfig.notifyOnAdd && lineConfig.groupId) {
+        try {
+          const flexMessage = buildNewMissionFlexMessage(newMission);
+          await sendLinePushMessage(lineConfig.groupId, flexMessage);
+          console.log(`📤 Sent new mission notification for ID ${newMission.id}`);
+        } catch (err) {
+          console.error('❌ Error sending new mission notification:', err);
+        }
       }
     }
 
@@ -1165,6 +1167,11 @@ async function setupDailyCronJob() {
   if (currentCronTask) {
     currentCronTask.stop();
     currentCronTask = null;
+  }
+
+  if (!process.env.LINE_ACCESS_TOKEN) {
+    console.log('ℹ️ [CRON] LINE_ACCESS_TOKEN not set. Daily LINE notifications disabled.');
+    return;
   }
 
   const { groupId, notifyTime, notifyEnabled } = await getLineConfig();
