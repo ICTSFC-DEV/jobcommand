@@ -3,7 +3,7 @@ title Push JobCommand to GitHub
 cd /d "%~dp0"
 chcp 65001 >nul
 echo ========================================================
-echo   กำลังส่งโค้ด JobCommand ขึ้น GitHub (Dev-fluke/jobcommand)
+echo   กำลังส่งโค้ด JobCommand ขึ้น GitHub (ICTSFC-DEV/jobcommand)
 echo ========================================================
 echo.
 echo หากมีหน้าต่างเบราว์เซอร์เด้งขึ้นมา ให้กด "Sign in with your browser" เพื่อยืนยันตัวตน
