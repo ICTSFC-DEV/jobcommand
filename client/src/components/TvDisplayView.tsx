@@ -22,13 +22,19 @@ interface TvDisplayViewProps {
   todayDateStr: string;
   now: Date;
   onExit: () => void;
+  selectedDepartment?: string;
+  onSelectDepartment?: (dept: string) => void;
+  departments?: string[];
 }
 
 export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
   missions,
   todayDateStr,
   now,
-  onExit
+  onExit,
+  selectedDepartment = 'all',
+  onSelectDepartment,
+  departments = []
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -130,7 +136,29 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
             </div>
 
             {/* TV Controls Toolbar */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Department Selector in TV mode */}
+              {onSelectDepartment && (
+                <div className="flex items-center gap-1.5 bg-blue-900/90 border border-blue-600 rounded-lg px-2.5 py-1.5 shadow-xs">
+                  <span className="text-xs text-amber-300 font-bold">🏛️</span>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => onSelectDepartment(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-1"
+                    title="เลือกดูภารกิจของหน่วยงานที่ต้องการ"
+                  >
+                    <option value="all" className="bg-slate-900 text-white">
+                      ทุกหน่วยงาน (ภาพรวม)
+                    </option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept} className="bg-slate-900 text-white">
+                        📍 {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 onClick={() =>
                   setThemeMode(themeMode === 'military-dark' ? 'clean-light' : 'military-dark')

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ActiveTab, Mission, Stats, UserAccount } from './types';
 import { getTodayDateString } from './utils/thaiDate';
 import { Header } from './components/Header';
@@ -35,6 +35,9 @@ export function App() {
       return null;
     }
   });
+
+  // Selected Department Filter ('all' or specific department name)
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -154,13 +157,46 @@ export function App() {
     };
   }, [fetchData]);
 
-  // Handle Add Mission
+  // Dynamic list of all departments found across missions and user accounts
+  const departmentsList = useMemo(() => {
+    const set = new Set<string>();
+    // Add current user's department if available
+    if (currentUser?.department && currentUser.department.trim()) {
+      set.add(currentUser.department.trim());
+    }
+    // Collect from all missions
+    missions.forEach((m) => {
+      if (m.department && m.department.trim()) {
+        set.add(m.department.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [missions, currentUser]);
+
+  // Filtered missions by selected department
+  const filteredTodayMissions = useMemo(() => {
+    if (selectedDepartment === 'all') return todayMissions;
+    return todayMissions.filter((m) => m.department === selectedDepartment);
+  }, [todayMissions, selectedDepartment]);
+
+  const filteredMissions = useMemo(() => {
+    if (selectedDepartment === 'all') return missions;
+    return missions.filter((m) => m.department === selectedDepartment);
+  }, [missions, selectedDepartment]);
+
+  // Handle Add Mission (tags department of current user)
   const handleAddMission = async (missionData: Partial<Mission>): Promise<boolean> => {
     try {
+      const payload = {
+        ...missionData,
+        department: currentUser?.department || missionData.department || 'สำนักงาน อย.',
+        created_by: currentUser?.username || missionData.created_by || 'เจ้าหน้าที่'
+      };
+
       const res = await fetch(`${API_BASE}/missions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(missionData)
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -286,10 +322,13 @@ export function App() {
   if (activeTab === 'tv') {
     return (
       <TvDisplayView
-        missions={todayMissions}
+        missions={filteredTodayMissions}
         todayDateStr={todayDateStr}
         now={now}
         onExit={() => setActiveTab('today')}
+        selectedDepartment={selectedDepartment}
+        onSelectDepartment={setSelectedDepartment}
+        departments={departmentsList}
       />
     );
   }
@@ -329,7 +368,7 @@ export function App() {
         </div>
       )}
 
-      {/* Main Wireframe Header */}
+      {/* Main Wireframe Header with Department Selector */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -337,6 +376,9 @@ export function App() {
         todayDateStr={todayDateStr}
         onRefresh={fetchData}
         isLoading={isLoading}
+        selectedDepartment={selectedDepartment}
+        onSelectDepartment={setSelectedDepartment}
+        departments={departmentsList}
       />
 
       {/* Left Sidebar Drawer */}
@@ -353,7 +395,7 @@ export function App() {
       <main className="flex-1 pb-16">
         {activeTab === 'today' && (
           <TodayMissionsView
-            missions={todayMissions}
+            missions={filteredTodayMissions}
             todayDateStr={todayDateStr}
             now={now}
             onEdit={(m) => setEditingMission(m)}
@@ -369,7 +411,7 @@ export function App() {
 
         {activeTab === 'other' && (
           <OtherMissionsView
-            missions={missions}
+            missions={filteredMissions}
             todayDateStr={todayDateStr}
             now={now}
             onEdit={(m) => setEditingMission(m)}
@@ -393,7 +435,7 @@ export function App() {
 
         {activeTab === 'table' && (
           <DesktopTableView
-            missions={missions}
+            missions={filteredMissions}
             todayDateStr={todayDateStr}
             onEdit={(m) => setEditingMission(m)}
             onDelete={handleDeleteMission}
@@ -405,7 +447,7 @@ export function App() {
 
         {activeTab === 'calendar' && (
           <CalendarView
-            missions={missions}
+            missions={filteredMissions}
             todayDateStr={todayDateStr}
             onEdit={(m) => setEditingMission(m)}
             onDateClick={(dateStr) => {

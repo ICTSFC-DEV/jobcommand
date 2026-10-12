@@ -12,6 +12,8 @@ export interface Mission {
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   notes?: string;
+  department?: string;
+  created_by?: string;
   attachment_url?: string | null;
   attachment_name?: string | null;
   attachment_type?: string | null;

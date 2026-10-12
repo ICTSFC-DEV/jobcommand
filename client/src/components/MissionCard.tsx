@@ -255,6 +255,13 @@ export const MissionCard: React.FC<MissionCardProps> = ({
                 <AlertTriangle className="w-3 h-3" /> ด่วนที่สุด
               </span>
             )}
+
+            {/* Department tag badge */}
+            {mission.department && (
+              <span className="inline-flex items-center text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                🏛️ {mission.department}
+              </span>
+            )}
           </div>
 
           {/* Discreet Copy / Edit / Delete icons (hidden in TV mode) */}

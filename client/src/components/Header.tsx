@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Plus, Tv, Calendar, RefreshCw } from 'lucide-react';
+import { Menu, Plus, Tv, Calendar, RefreshCw, Building2 } from 'lucide-react';
 import type { ActiveTab } from '../types';
 
 interface HeaderProps {
@@ -9,6 +9,9 @@ interface HeaderProps {
   todayDateStr?: string;
   onRefresh?: () => void;
   isLoading?: boolean;
+  selectedDepartment?: string;
+  onSelectDepartment?: (dept: string) => void;
+  departments?: string[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,20 +20,46 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSidebar,
   todayDateStr: _todayDateStr,
   onRefresh,
-  isLoading
+  isLoading,
+  selectedDepartment = 'all',
+  onSelectDepartment,
+  departments = []
 }) => {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b-2 border-slate-300 shadow-xs select-none">
       {/* Top Banner with Air Force Navy accent */}
-      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white px-3 py-1.5 flex items-center justify-between text-xs">
+      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2">
           <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
           <span className="font-medium tracking-wide">
             ภารกิจผู้บังคับบัญชา หน่วยบัญชาการอากาศโยธิน (อย.)
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Department Filter Dropdown */}
+          {onSelectDepartment && (
+            <div className="flex items-center gap-1.5 bg-blue-900/80 border border-blue-400/30 rounded-lg px-2 py-0.5">
+              <Building2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <select
+                value={selectedDepartment}
+                onChange={(e) => onSelectDepartment(e.target.value)}
+                className="bg-transparent text-[11px] font-semibold text-white focus:outline-none cursor-pointer pr-1"
+                title="เลือกดูภารกิจตามหน่วยงาน"
+              >
+                <option value="all" className="bg-slate-900 text-white">
+                  🏛️ ทุกหน่วยงาน
+                </option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept} className="bg-slate-900 text-white">
+                    📍 {dept}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* TV Display Button */}
           <button
             onClick={() => setActiveTab('tv')}
             className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
