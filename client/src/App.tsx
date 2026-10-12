@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ActiveTab, Mission, Stats, UserAccount } from './types';
+import { DEFAULT_DEPARTMENTS } from './types';
 import { getTodayDateString } from './utils/thaiDate';
 import { Header } from './components/Header';
 import { SidebarDrawer } from './components/SidebarDrawer';
@@ -169,9 +170,12 @@ export function App() {
     };
   }, [fetchData]);
 
-  // Dynamic list of all departments found across missions and user accounts
+  // Dynamic list of all departments found across missions, user accounts, and standard units
   const departmentsList = useMemo(() => {
     const set = new Set<string>();
+    // Pre-populate with standard military departments including นทสส.อย.
+    DEFAULT_DEPARTMENTS.forEach((dept) => set.add(dept));
+
     // Add current user's department if available
     if (currentUser?.department && currentUser.department.trim()) {
       set.add(currentUser.department.trim());
@@ -196,12 +200,12 @@ export function App() {
     return missions.filter((m) => m.department === selectedDepartment);
   }, [missions, selectedDepartment]);
 
-  // Handle Add Mission (tags department of current user)
+  // Handle Add Mission (tags department of current user or selected in form)
   const handleAddMission = async (missionData: Partial<Mission>): Promise<boolean> => {
     try {
       const payload = {
         ...missionData,
-        department: currentUser?.department || missionData.department || 'สำนักงาน อย.',
+        department: missionData.department || currentUser?.department || 'นทสส.อย.',
         created_by: currentUser?.username || missionData.created_by || 'เจ้าหน้าที่'
       };
 
@@ -445,6 +449,14 @@ export function App() {
             onAddMission={handleAddMission}
             onCancel={() => setActiveTab('today')}
             defaultDate={addMissionDatePrefill}
+            defaultDepartment={
+              currentUser?.department && currentUser.department.trim()
+                ? currentUser.department
+                : selectedDepartment !== 'all'
+                ? selectedDepartment
+                : 'นทสส.อย.'
+            }
+            departments={departmentsList}
           />
         )}
 
@@ -485,6 +497,7 @@ export function App() {
         isOpen={!!editingMission}
         onClose={() => setEditingMission(null)}
         onSave={handleUpdateMission}
+        departments={departmentsList}
       />
 
       {/* Footer for Mobile / Desktop */}

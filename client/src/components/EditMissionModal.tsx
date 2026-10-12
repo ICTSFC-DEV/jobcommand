@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Mission } from '../types';
+import { DEFAULT_DEPARTMENTS } from '../types';
 import { X, Save, FileText } from 'lucide-react';
 
 interface EditMissionModalProps {
@@ -7,17 +8,20 @@ interface EditMissionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (id: number, data: Partial<Mission>) => Promise<boolean>;
+  departments?: string[];
 }
 
 export const EditMissionModal: React.FC<EditMissionModalProps> = ({
   mission,
   isOpen,
   onClose,
-  onSave
+  onSave,
+  departments = []
 }) => {
   if (!isOpen || !mission) return null;
 
   const [title, setTitle] = useState(mission.title);
+  const [department, setDepartment] = useState(mission.department || 'นทสส.อย.');
   const [category, setCategory] = useState(mission.category || 'ทั่วไป');
   const [startDate, setStartDate] = useState(mission.start_date);
   const [endDate, setEndDate] = useState(mission.end_date);
@@ -35,9 +39,20 @@ export const EditMissionModal: React.FC<EditMissionModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const allDeptOptions = useMemo(() => {
+    const set = new Set<string>();
+    if (mission?.department) set.add(mission.department);
+    DEFAULT_DEPARTMENTS.forEach((d) => set.add(d));
+    departments.forEach((d) => {
+      if (d && d.trim()) set.add(d.trim());
+    });
+    return Array.from(set);
+  }, [mission, departments]);
+
   useEffect(() => {
     if (mission) {
       setTitle(mission.title);
+      setDepartment(mission.department || 'นทสส.อย.');
       setCategory(mission.category || 'ทั่วไป');
       setStartDate(mission.start_date);
       setEndDate(mission.end_date);
@@ -59,6 +74,7 @@ export const EditMissionModal: React.FC<EditMissionModalProps> = ({
     setIsSubmitting(true);
     const success = await onSave(mission.id, {
       title,
+      department,
       category,
       start_date: startDate,
       end_date: endDate,
@@ -105,6 +121,23 @@ export const EditMissionModal: React.FC<EditMissionModalProps> = ({
               className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-blue-600 font-medium"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              หน่วยงาน / สังกัดผู้ปฏิบัติ :
+            </label>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white font-medium"
+            >
+              {allDeptOptions.map((dept) => (
+                <option key={dept} value={dept}>
+                  🏛️ {dept}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

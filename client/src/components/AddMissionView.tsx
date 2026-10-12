@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { Mission } from '../types';
 import { getTodayDateString } from '../utils/thaiDate';
 import {
@@ -17,10 +17,14 @@ import {
   Settings
 } from 'lucide-react';
 
+import { DEFAULT_DEPARTMENTS } from '../types';
+
 interface AddMissionViewProps {
   onAddMission: (data: Partial<Mission>) => Promise<boolean>;
   onCancel: () => void;
   defaultDate?: string;
+  defaultDepartment?: string;
+  departments?: string[];
 }
 
 interface PresetItem {
@@ -32,12 +36,15 @@ interface PresetItem {
 export const AddMissionView: React.FC<AddMissionViewProps> = ({
   onAddMission,
   onCancel,
-  defaultDate
+  defaultDate,
+  defaultDepartment = 'สำนักงานผู้บังคับบัญชา อย.',
+  departments = []
 }) => {
   const today = defaultDate || getTodayDateString();
 
   // Form Fields
   const [title, setTitle] = useState('');
+  const [department, setDepartment] = useState(defaultDepartment);
   const [category, setCategory] = useState('ประชุม');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
@@ -49,6 +56,22 @@ export const AddMissionView: React.FC<AddMissionViewProps> = ({
   const [assignee, setAssignee] = useState('');
   const [isCustomAssignee, setIsCustomAssignee] = useState(false);
   const [priority, setPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal');
+
+  useEffect(() => {
+    if (defaultDepartment) {
+      setDepartment(defaultDepartment);
+    }
+  }, [defaultDepartment]);
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    if (defaultDepartment && defaultDepartment.trim()) set.add(defaultDepartment.trim());
+    DEFAULT_DEPARTMENTS.forEach((d) => set.add(d));
+    departments.forEach((d) => {
+      if (d && d.trim()) set.add(d.trim());
+    });
+    return Array.from(set);
+  }, [defaultDepartment, departments]);
 
   // Attachment (PDF or Image)
   const [attachment, setAttachment] = useState<{
@@ -265,6 +288,7 @@ export const AddMissionView: React.FC<AddMissionViewProps> = ({
     try {
       const success = await onAddMission({
         title: title.trim(),
+        department: department.trim(),
         category,
         start_date: startDate,
         end_date: endDate || startDate,
@@ -314,6 +338,25 @@ export const AddMissionView: React.FC<AddMissionViewProps> = ({
               required
               autoFocus
             />
+          </div>
+
+          {/* Row: หน่วยงาน / สังกัดผู้ปฏิบัติ */}
+          <div className="w-full max-w-full">
+            <label className="block text-base font-bold text-slate-900 mb-1.5 flex items-center justify-between">
+              <span>หน่วยงาน / สังกัดผู้ปฏิบัติ : <span className="text-red-600">*</span></span>
+              <span className="text-xs text-blue-700 font-medium">หน่วยงานที่เป็นเจ้าของภารกิจ</span>
+            </label>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="w-full border-2 border-slate-800 rounded-md px-3.5 py-2.5 text-sm sm:text-base text-slate-900 focus:outline-none focus:border-blue-700 bg-white shadow-xs font-semibold cursor-pointer"
+            >
+              {departmentOptions.map((dept) => (
+                <option key={dept} value={dept}>
+                  🏛️ {dept}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Row 2: วันที่ : ถึง วันที่ */}
