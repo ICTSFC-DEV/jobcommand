@@ -5,22 +5,30 @@ import {
   TableProperties,
   Shield,
   Radio,
-  CalendarDays
+  CalendarDays,
+  ShieldAlert,
+  LogOut,
+  Building,
+  UserCheck
 } from 'lucide-react';
-import type { ActiveTab } from '../types';
+import type { ActiveTab, UserAccount } from '../types';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  currentUser?: UserAccount | null;
+  onLogout?: () => void;
 }
 
 export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   isOpen,
   onClose,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  currentUser,
+  onLogout
 }) => {
   if (!isOpen) return null;
 
@@ -47,6 +55,12 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
       label: 'ตารางสรุป / ส่งออกรายงาน',
       sublabel: 'สำหรับจอคอมพิวเตอร์และพิมพ์รายงานทางการ',
       icon: TableProperties
+    },
+    {
+      id: 'admin' as ActiveTab,
+      label: 'เมนูสำหรับเจ้าหน้าที่',
+      sublabel: 'จัดการผู้ใช้งาน • ตรวจสอบพื้นที่ • ประวัติการใช้งาน',
+      icon: ShieldAlert
     }
   ];
 
@@ -132,10 +146,42 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             </div>
           </div>
 
-          {/* Drawer Footer */}
-         
+          {/* Drawer Footer with User Info & Logout */}
+          <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
+            {currentUser && (
+              <div className="flex items-center gap-2.5 p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs shrink-0">
+                  <UserCheck className="w-5 h-5 text-blue-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-800 truncate">
+                    {currentUser.username}
+                  </p>
+                  <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
+                    <Building className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{currentUser.department || 'สำนักงาน อย.'}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="w-full py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-red-600" />
+                <span>ออกจากระบบ (Logout)</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+

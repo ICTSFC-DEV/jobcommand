@@ -103,11 +103,39 @@ if (isSupabase) {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      department TEXT NOT NULL,
+      password TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS access_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT,
+      department TEXT,
+      ip TEXT,
+      status TEXT NOT NULL,
+      action TEXT DEFAULT 'login',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   try { db.exec('ALTER TABLE missions ADD COLUMN attachment_url TEXT;'); } catch {}
   try { db.exec('ALTER TABLE missions ADD COLUMN attachment_name TEXT;'); } catch {}
   try { db.exec('ALTER TABLE missions ADD COLUMN attachment_type TEXT;'); } catch {}
+
+  // Seed default admin/commander user if users table is empty
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+  if (userCount === 0) {
+    db.prepare('INSERT INTO users (username, department, password) VALUES (?, ?, ?)').run(
+      'เจ้าหน้าที่สำนักงาน',
+      'สำนักงานผู้บังคับบัญชา อย.',
+      '123456'
+    );
+  }
 
   // Seed Default Categories
   const catCount = db.prepare('SELECT COUNT(*) as count FROM categories').get().count;
@@ -564,4 +592,277 @@ export async function getStats(todayStr) {
   return { total, todayCount, inProgress, completed, pending };
 }
 
+// ==========================================
+// User Management Functions
+// ==========================================
+export async function getAllUsers() {
+  if (isSupabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, department, created_at')
+      .order('id', { ascending: true });
+    if (error) {
+      console.error('Supabase getAllUsers error:', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  return db.prepare('SELECT id, username, department, created_at FROM users ORDER BY id ASC').all();
+}
+
+export async function authenticateByPassword(password) {
+  if (!password) return null;
+  const trimmed = String(password).trim();
+
+  if (isSupabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, department')
+      .eq('password', trimmed)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Supabase auth error:', error);
+      return null;
+    }
+    return data;
+  }
+
+  const user = db.prepare('SELECT id, username, department FROM users WHERE password = ? LIMIT 1').get(trimmed);
+  return user || null;
+}
+
+export async function createUser({ username, department, password }) {
+  if (!username || !password) throw new Error('กรุณาระบุชื่อผู้ใช้งานและรหัสผ่าน');
+
+  if (isSupabase) {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        username: username.trim(),
+        department: (department || '').trim(),
+        password: password.trim()
+      })
+      .select('id, username, department, created_at')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  const res = db.prepare('INSERT INTO users (username, department, password) VALUES (?, ?, ?)').run(
+    username.trim(),
+    (department || '').trim(),
+    password.trim()
+  );
+  return db.prepare('SELECT id, username, department, created_at FROM users WHERE id = ?').get(res.lastInsertRowid);
+}
+
+export async function updateUser(id, { username, department, password }) {
+  if (!username) throw new Error('กรุณาระบุชื่อผู้ใช้งาน');
+
+  if (isSupabase) {
+    const payload = {
+      username: username.trim(),
+      department: (department || '').trim()
+    };
+    if (password && password.trim()) {
+      payload.password = password.trim();
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(payload)
+      .eq('id', id)
+      .select('id, username, department, created_at')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  if (password && password.trim()) {
+    db.prepare('UPDATE users SET username = ?, department = ?, password = ? WHERE id = ?').run(
+      username.trim(),
+      (department || '').trim(),
+      password.trim(),
+      id
+    );
+  } else {
+    db.prepare('UPDATE users SET username = ?, department = ? WHERE id = ?').run(
+      username.trim(),
+      (department || '').trim(),
+      id
+    );
+  }
+
+  return db.prepare('SELECT id, username, department, created_at FROM users WHERE id = ?').get(id);
+}
+
+export async function deleteUser(id) {
+  if (isSupabase) {
+    const { data, error } = await supabase.from('users').delete().eq('id', id).select().maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  const user = db.prepare('SELECT id, username, department FROM users WHERE id = ?').get(id);
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  return user;
+}
+
+// ==========================================
+// Access Logs
+// ==========================================
+export async function addAccessLog({ username, department, ip, status, action = 'login' }) {
+  try {
+    if (isSupabase) {
+      await supabase.from('access_logs').insert({
+        username: username || 'Unknown',
+        department: department || '',
+        ip: ip || '',
+        status: status || 'success',
+        action
+      });
+      return;
+    }
+
+    db.prepare('INSERT INTO access_logs (username, department, ip, status, action) VALUES (?, ?, ?, ?, ?)').run(
+      username || 'Unknown',
+      department || '',
+      ip || '',
+      status || 'success',
+      action
+    );
+  } catch (err) {
+    console.error('Failed to record access log:', err);
+  }
+}
+
+export async function getAccessLogs(limit = 100) {
+  if (isSupabase) {
+    const { data, error } = await supabase
+      .from('access_logs')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.error('Supabase getAccessLogs error:', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  return db.prepare('SELECT * FROM access_logs ORDER BY id DESC LIMIT ?').all(limit);
+}
+
+export async function clearAccessLogs() {
+  if (isSupabase) {
+    await supabase.from('access_logs').delete().neq('id', 0);
+    return true;
+  }
+  db.prepare('DELETE FROM access_logs').run();
+  return true;
+}
+
+// ==========================================
+// Supabase / Local Storage Usage
+// ==========================================
+export async function getStorageUsage() {
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  };
+
+  const QUOTA_BYTES = 1024 * 1024 * 1024; // 1 GB (Supabase free tier storage quota)
+
+  if (isSupabase && supabase) {
+    try {
+      const { data: files, error } = await supabase.storage.from('attachments').list('', {
+        limit: 1000,
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
+
+      if (error) {
+        console.error('Supabase storage list error:', error);
+        throw error;
+      }
+
+      let totalBytes = 0;
+      const fileList = (files || []).map((f) => {
+        const size = f.metadata?.size || 0;
+        totalBytes += size;
+        return {
+          name: f.name,
+          size,
+          sizeFormatted: formatBytes(size),
+          updated_at: f.updated_at || f.created_at
+        };
+      });
+
+      const remainingBytes = Math.max(0, QUOTA_BYTES - totalBytes);
+      const percentUsed = Math.min(100, Math.round((totalBytes / QUOTA_BYTES) * 10000) / 100);
+
+      return {
+        isSupabase: true,
+        totalBytes,
+        usedFormatted: formatBytes(totalBytes),
+        quotaBytes: QUOTA_BYTES,
+        quotaFormatted: formatBytes(QUOTA_BYTES),
+        remainingBytes,
+        remainingFormatted: formatBytes(remainingBytes),
+        percentUsed,
+        fileCount: fileList.length,
+        files: fileList
+      };
+    } catch (err) {
+      console.error('Error fetching Supabase storage usage:', err);
+      // Fallback
+    }
+  }
+
+  // Local uploads directory fallback
+  const uploadsPath = path.join(__dirname, 'uploads');
+  let totalBytes = 0;
+  const fileList = [];
+
+  if (fs.existsSync(uploadsPath)) {
+    const files = fs.readdirSync(uploadsPath);
+    for (const f of files) {
+      try {
+        const stat = fs.statSync(path.join(uploadsPath, f));
+        if (stat.isFile()) {
+          totalBytes += stat.size;
+          fileList.push({
+            name: f,
+            size: stat.size,
+            sizeFormatted: formatBytes(stat.size),
+            updated_at: stat.mtime
+          });
+        }
+      } catch {}
+    }
+  }
+
+  const remainingBytes = Math.max(0, QUOTA_BYTES - totalBytes);
+  const percentUsed = Math.min(100, Math.round((totalBytes / QUOTA_BYTES) * 10000) / 100);
+
+  return {
+    isSupabase: false,
+    totalBytes,
+    usedFormatted: formatBytes(totalBytes),
+    quotaBytes: QUOTA_BYTES,
+    quotaFormatted: formatBytes(QUOTA_BYTES),
+    remainingBytes,
+    remainingFormatted: formatBytes(remainingBytes),
+    percentUsed,
+    fileCount: fileList.length,
+    files: fileList
+  };
+}
+
 export default db;
+

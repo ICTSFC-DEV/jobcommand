@@ -81,6 +81,18 @@ export const Header: React.FC<HeaderProps> = ({
               กลับหน้ารายการ
             </button>
           </div>
+        ) : activeTab === 'admin' ? (
+          <div className="flex-1 flex items-center justify-between px-4 sm:px-6">
+            <h1 className="text-lg sm:text-xl font-semibold text-slate-800 tracking-tight">
+              เมนูสำหรับเจ้าหน้าที่ (Officer Panel)
+            </h1>
+            <button
+              onClick={() => setActiveTab('today')}
+              className="text-xs sm:text-sm text-blue-700 hover:text-blue-900 font-medium underline underline-offset-4"
+            >
+              กลับหน้าหลัก
+            </button>
+          </div>
         ) : (
           /* Wireframe 2 & 3 Header: [ภารกิจวันนี้ 1 ต.ค.69] | [วันอื่นๆ] */
           <div className="flex-1 flex items-stretch">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { ActiveTab, Mission, Stats } from './types';
+import type { ActiveTab, Mission, Stats, UserAccount } from './types';
 import { getTodayDateString } from './utils/thaiDate';
 import { Header } from './components/Header';
 import { SidebarDrawer } from './components/SidebarDrawer';
@@ -11,12 +11,31 @@ import { DesktopTableView } from './components/DesktopTableView';
 import { EditMissionModal } from './components/EditMissionModal';
 import { CalendarView } from './components/CalendarView';
 import { LoadingScreen } from './components/LoadingScreen';
+import { LoginScreen } from './components/LoginScreen';
+import { OfficerSettingsView } from './components/OfficerSettingsView';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('today');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    // Check if initial URL asks for TV mode
+    if (window.location.search.includes('mode=tv') || window.location.hash.includes('tv')) {
+      return 'tv';
+    }
+    return 'today';
+  });
+
+  // User session state (remembered in localStorage)
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem('jobcomm_logged_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [todayMissions, setTodayMissions] = useState<Mission[]>([]);
@@ -40,6 +59,13 @@ export function App() {
 
   // Date prefill for Add Mission
   const [addMissionDatePrefill, setAddMissionDatePrefill] = useState<string>(todayDateStr);
+
+  const handleLogout = () => {
+    localStorage.removeItem('jobcomm_logged_user');
+    sessionStorage.removeItem('jobcomm_officer_pin_auth');
+    setCurrentUser(null);
+    showToast('ออกจากระบบเรียบร้อยแล้ว');
+  };
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -256,7 +282,7 @@ export function App() {
     return <LoadingScreen message="กำลังโหลดข้อมูล..." />;
   }
 
-  // If in TV Mode, render dedicated TV full-screen interface
+  // If in TV Mode, render dedicated TV full-screen interface (can view without login)
   if (activeTab === 'tv') {
     return (
       <TvDisplayView
@@ -268,7 +294,18 @@ export function App() {
     );
   }
 
-
+  // If not logged in, show Login Screen (password only)
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          showToast(`ยินดีต้อนรับ ${user.username} (${user.department})`);
+        }}
+        onOpenTvMode={() => setActiveTab('tv')}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col antialiased selection:bg-blue-600 selection:text-white">
@@ -308,6 +345,8 @@ export function App() {
         onClose={() => setIsSidebarOpen(false)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -372,6 +411,13 @@ export function App() {
             onDateClick={(dateStr) => {
               setActiveTab('other');
             }}
+          />
+        )}
+
+        {activeTab === 'admin' && (
+          <OfficerSettingsView
+            onBack={() => setActiveTab('today')}
+            onToast={showToast}
           />
         )}
       </main>

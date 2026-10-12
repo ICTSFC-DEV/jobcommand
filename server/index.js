@@ -21,7 +21,16 @@ import {
   getPresets,
   addPreset,
   updatePreset,
-  deletePreset
+  deletePreset,
+  getAllUsers,
+  authenticateByPassword,
+  createUser,
+  updateUser,
+  deleteUser,
+  addAccessLog,
+  getAccessLogs,
+  clearAccessLogs,
+  getStorageUsage
 } from './db.js';
 import { generatePptxReport } from './pptExporter.js';
 
@@ -1290,7 +1299,158 @@ app.get('/api/visits', async (req, res) => {
   }
   res.json({ date: today, count: currentVisitsCount });
 });
-// ---------------------
+// ==========================================
+// Authentication & User Management API
+// ==========================================
+const ADMIN_SECURITY_PIN = '164381';
+
+// Helper to get client IP
+function getClientIp(req) {
+  return (
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    '127.0.0.1'
+  );
+}
+
+// 1. Login with password only
+app.post('/api/auth/login', async (req, res) => {
+  const { password } = req.body;
+  const ip = getClientIp(req);
+
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'กรุณากรอกรหัสผ่าน' });
+  }
+
+  try {
+    const user = await authenticateByPassword(password);
+    if (!user) {
+      await addAccessLog({
+        username: 'ไม่ระบุตัวตน (รหัสผ่านผิด)',
+        department: '-',
+        ip,
+        status: 'failed',
+        action: 'เข้าสู่ระบบ (รหัสผ่านไม่ถูกต้อง)'
+      });
+      return res.status(401).json({ success: false, error: 'รหัสผ่านไม่ถูกต้อง' });
+    }
+
+    // Success login
+    await addAccessLog({
+      username: user.username,
+      department: user.department,
+      ip,
+      status: 'success',
+      action: 'เข้าสู่ระบบสำเร็จ'
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        department: user.department
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, error: 'เกิดข้อผิดพลาดในการตรวจสอบรหัสผ่าน' });
+  }
+});
+
+// Verify security PIN (164381)
+app.post('/api/auth/verify-security-pin', (req, res) => {
+  const { pin } = req.body;
+  if (pin === ADMIN_SECURITY_PIN) {
+    res.json({ success: true });
+  } else {
+    res.status(403).json({ success: false, error: 'รหัสรักษาความปลอดภัยไม่ถูกต้อง' });
+  }
+});
+
+// Middleware for Officer / Security PIN protection
+function requireSecurityPin(req, res, next) {
+  const authPin = req.headers['x-security-pin'];
+  if (authPin === ADMIN_SECURITY_PIN) {
+    return next();
+  }
+  return res.status(403).json({ success: false, error: 'ไม่มีสิทธิ์เข้าถึง (รหัสรักษาความปลอดภัยไม่ถูกต้อง)' });
+}
+
+// 2.1 Manage Users
+app.get('/api/users', requireSecurityPin, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    res.json({ success: true, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/users', requireSecurityPin, async (req, res) => {
+  try {
+    const { username, department, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' });
+    }
+    const newUser = await createUser({ username, department, password });
+    res.json({ success: true, data: newUser });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/users/:id', requireSecurityPin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, department, password } = req.body;
+    const updated = await updateUser(Number(id), { username, department, password });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', requireSecurityPin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await deleteUser(Number(id));
+    res.json({ success: true, data: deleted });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2.2 Storage usage
+app.get('/api/storage/status', requireSecurityPin, async (req, res) => {
+  try {
+    const storageInfo = await getStorageUsage();
+    res.json({ success: true, data: storageInfo });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2.3 Access Logs
+app.get('/api/access-logs', requireSecurityPin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const logs = await getAccessLogs(limit);
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/access-logs', requireSecurityPin, async (req, res) => {
+  try {
+    await clearAccessLogs();
+    res.json({ success: true, message: 'ล้างประวัติการเข้าใช้งานเรียบร้อย' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 JobCommand Server running at http://localhost:${PORT}`);

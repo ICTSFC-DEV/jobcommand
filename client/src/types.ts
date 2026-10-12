@@ -19,7 +19,43 @@ export interface Mission {
   updated_at?: string;
 }
 
-export type ActiveTab = 'today' | 'other' | 'add' | 'tv' | 'table' | 'calendar';
+export type ActiveTab = 'today' | 'other' | 'add' | 'tv' | 'table' | 'calendar' | 'admin';
+
+export interface UserAccount {
+  id: number;
+  username: string;
+  department: string;
+  password?: string;
+  created_at?: string;
+}
+
+export interface AccessLog {
+  id: number;
+  username?: string;
+  department?: string;
+  ip?: string;
+  status: 'success' | 'failed';
+  action: string;
+  created_at: string;
+}
+
+export interface StorageStatus {
+  isSupabase: boolean;
+  totalBytes: number;
+  usedFormatted: string;
+  quotaBytes: number;
+  quotaFormatted: string;
+  remainingBytes: number;
+  remainingFormatted: string;
+  percentUsed: number;
+  fileCount: number;
+  files: {
+    name: string;
+    size: number;
+    sizeFormatted: string;
+    updated_at?: string;
+  }[];
+}
 
 export interface Stats {
   total: number;
@@ -49,3 +85,4 @@ export const MISSION_CATEGORIES = [
   'วิทยุสื่อสาร',
   'ภารกิจพิเศษ'
 ] as const;
+
