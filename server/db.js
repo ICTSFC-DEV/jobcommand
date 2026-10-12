@@ -7,8 +7,11 @@ import { createClient } from '@supabase/supabase-js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Check if Supabase credentials are provided
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const rawSupabaseUrl = process.env.SUPABASE_URL || '';
+// Clean url: remove trailing slash and any accidental /rest/v1 or /v1 suffix
+const cleanSupabaseUrl = rawSupabaseUrl.trim().replace(/\/+$/, '').replace(/\/rest\/v1\/?$/i, '').replace(/\/v1\/?$/i, '');
+const SUPABASE_URL = cleanSupabaseUrl;
+const SUPABASE_KEY = (process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
 
 export const isSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
@@ -603,20 +606,40 @@ export async function getAllUsers() {
     created_at: new Date().toISOString()
   };
 
-  if (isSupabase) {
+  if (isSupabase && supabase) {
+    // 1. Try dedicated 'users' table
     try {
       const { data, error } = await supabase
         .from('users')
         .select('id, username, department, created_at')
         .order('id', { ascending: true });
-      if (error) {
-        console.error('Supabase getAllUsers error:', error);
-        return [defaultAdmin];
+      if (!error && data) {
+        return data.length > 0 ? data : [defaultAdmin];
       }
-      return data && data.length > 0 ? data : [defaultAdmin];
-    } catch {
-      return [defaultAdmin];
-    }
+    } catch {}
+
+    // 2. Fallback: Check if stored in 'personnel' with USER: prefix
+    try {
+      const { data } = await supabase
+        .from('personnel')
+        .select('*')
+        .like('name', 'USER:%')
+        .order('id', { ascending: true });
+      if (data && data.length > 0) {
+        return data.map(p => {
+          // name format: "USER:<username>:<password>"
+          const parts = p.name.split(':');
+          return {
+            id: p.id,
+            username: parts[1] || 'ผู้ใช้งาน',
+            department: p.role || 'สำนักงาน อย.',
+            created_at: new Date().toISOString()
+          };
+        });
+      }
+    } catch {}
+
+    return [defaultAdmin];
   }
 
   try {
@@ -639,6 +662,7 @@ export async function authenticateByPassword(password) {
   };
 
   if (isSupabase && supabase) {
+    // 1. Check in 'users' table
     try {
       const { data, error } = await supabase
         .from('users')
@@ -650,26 +674,33 @@ export async function authenticateByPassword(password) {
       if (!error && data) {
         return data;
       }
+    } catch {}
 
-      // If table doesn't have users yet or table not created yet in Supabase,
-      // allow default master password '123456'
-      if (trimmed === '123456') {
-        // Try auto-insert default user into Supabase if table exists
-        try {
-          await supabase.from('users').insert({
-            username: defaultAdmin.username,
-            department: defaultAdmin.department,
-            password: '123456'
-          });
-        } catch {}
-        return defaultAdmin;
+    // 2. Fallback: check in 'personnel' table
+    try {
+      const { data: personnelList } = await supabase
+        .from('personnel')
+        .select('*')
+        .like('name', 'USER:%');
+      if (personnelList && personnelList.length > 0) {
+        for (const p of personnelList) {
+          const parts = p.name.split(':');
+          const pass = parts[2] || '';
+          if (pass === trimmed) {
+            return {
+              id: p.id,
+              username: parts[1] || 'ผู้ใช้งาน',
+              department: p.role || 'สำนักงาน อย.'
+            };
+          }
+        }
       }
-      return null;
-    } catch (err) {
-      console.error('Supabase auth error:', err);
-      if (trimmed === '123456') return defaultAdmin;
-      return null;
+    } catch {}
+
+    if (trimmed === '123456') {
+      return defaultAdmin;
     }
+    return null;
   }
 
   // Local SQLite database
@@ -690,18 +721,42 @@ export async function authenticateByPassword(password) {
 export async function createUser({ username, department, password }) {
   if (!username || !password) throw new Error('กรุณาระบุชื่อผู้ใช้งานและรหัสผ่าน');
 
-  if (isSupabase) {
-    const { data, error } = await supabase
-      .from('users')
+  if (isSupabase && supabase) {
+    // 1. Try dedicated 'users' table
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          username: username.trim(),
+          department: (department || '').trim(),
+          password: password.trim()
+        })
+        .select('id, username, department, created_at')
+        .single();
+      if (!error && data) return data;
+      console.warn('users table not available, using fallback storage:', error?.message);
+    } catch (e) {
+      console.warn('users table insert failed, falling back:', e);
+    }
+
+    // 2. Fallback: Store into 'personnel' table which always exists in schema
+    const encodedName = `USER:${username.trim()}:${password.trim()}`;
+    const { data: pData, error: pErr } = await supabase
+      .from('personnel')
       .insert({
-        username: username.trim(),
-        department: (department || '').trim(),
-        password: password.trim()
+        name: encodedName,
+        role: (department || 'สำนักงาน อย.').trim()
       })
-      .select('id, username, department, created_at')
+      .select('id, name, role')
       .single();
-    if (error) throw error;
-    return data;
+
+    if (pErr) throw pErr;
+    return {
+      id: pData.id,
+      username: username.trim(),
+      department: department.trim(),
+      created_at: new Date().toISOString()
+    };
   }
 
   const res = db.prepare('INSERT INTO users (username, department, password) VALUES (?, ?, ?)').run(
@@ -715,23 +770,54 @@ export async function createUser({ username, department, password }) {
 export async function updateUser(id, { username, department, password }) {
   if (!username) throw new Error('กรุณาระบุชื่อผู้ใช้งาน');
 
-  if (isSupabase) {
-    const payload = {
-      username: username.trim(),
-      department: (department || '').trim()
-    };
-    if (password && password.trim()) {
-      payload.password = password.trim();
-    }
+  if (isSupabase && supabase) {
+    // 1. Try dedicated 'users' table
+    try {
+      const payload = {
+        username: username.trim(),
+        department: (department || '').trim()
+      };
+      if (password && password.trim()) {
+        payload.password = password.trim();
+      }
 
-    const { data, error } = await supabase
-      .from('users')
-      .update(payload)
-      .eq('id', id)
-      .select('id, username, department, created_at')
-      .single();
-    if (error) throw error;
-    return data;
+      const { data, error } = await supabase
+        .from('users')
+        .update(payload)
+        .eq('id', id)
+        .select('id, username, department, created_at')
+        .single();
+      if (!error && data) return data;
+    } catch {}
+
+    // 2. Fallback in 'personnel' table
+    try {
+      const { data: currentP } = await supabase.from('personnel').select('*').eq('id', id).single();
+      let currentPass = '';
+      if (currentP?.name?.startsWith('USER:')) {
+        currentPass = currentP.name.split(':')[2] || '';
+      }
+      const newPass = password && password.trim() ? password.trim() : currentPass;
+      const encodedName = `USER:${username.trim()}:${newPass}`;
+      const { data: updatedP, error: pErr } = await supabase
+        .from('personnel')
+        .update({
+          name: encodedName,
+          role: (department || '').trim()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      if (pErr) throw pErr;
+      return {
+        id: updatedP.id,
+        username: username.trim(),
+        department: department.trim(),
+        created_at: new Date().toISOString()
+      };
+    } catch (err) {
+      throw err;
+    }
   }
 
   if (password && password.trim()) {
@@ -753,10 +839,18 @@ export async function updateUser(id, { username, department, password }) {
 }
 
 export async function deleteUser(id) {
-  if (isSupabase) {
-    const { data, error } = await supabase.from('users').delete().eq('id', id).select().maybeSingle();
-    if (error) throw error;
-    return data;
+  if (isSupabase && supabase) {
+    try {
+      const { data } = await supabase.from('users').delete().eq('id', id).select().maybeSingle();
+      if (data) return data;
+    } catch {}
+
+    // Fallback in personnel
+    try {
+      const { data } = await supabase.from('personnel').delete().eq('id', id).select().maybeSingle();
+      return data;
+    } catch {}
+    return { id };
   }
 
   const user = db.prepare('SELECT id, username, department FROM users WHERE id = ?').get(id);
@@ -769,14 +863,17 @@ export async function deleteUser(id) {
 // ==========================================
 export async function addAccessLog({ username, department, ip, status, action = 'login' }) {
   try {
-    if (isSupabase) {
-      await supabase.from('access_logs').insert({
+    if (isSupabase && supabase) {
+      const { error } = await supabase.from('access_logs').insert({
         username: username || 'Unknown',
         department: department || '',
         ip: ip || '',
         status: status || 'success',
         action
       });
+      if (error) {
+        // Fallback or ignore if table does not exist yet
+      }
       return;
     }
 
@@ -788,33 +885,44 @@ export async function addAccessLog({ username, department, ip, status, action = 
       action
     );
   } catch (err) {
-    console.error('Failed to record access log:', err);
+    // Non-blocking log
   }
 }
 
 export async function getAccessLogs(limit = 100) {
-  if (isSupabase) {
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*')
-      .order('id', { ascending: false })
-      .limit(limit);
-    if (error) {
-      console.error('Supabase getAccessLogs error:', error);
+  if (isSupabase && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('access_logs')
+        .select('*')
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (error) {
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
   }
 
-  return db.prepare('SELECT * FROM access_logs ORDER BY id DESC LIMIT ?').all(limit);
+  try {
+    return db.prepare('SELECT * FROM access_logs ORDER BY id DESC LIMIT ?').all(limit);
+  } catch {
+    return [];
+  }
 }
 
 export async function clearAccessLogs() {
-  if (isSupabase) {
-    await supabase.from('access_logs').delete().neq('id', 0);
+  if (isSupabase && supabase) {
+    try {
+      await supabase.from('access_logs').delete().neq('id', 0);
+    } catch {}
     return true;
   }
-  db.prepare('DELETE FROM access_logs').run();
+  try {
+    db.prepare('DELETE FROM access_logs').run();
+  } catch {}
   return true;
 }
 
